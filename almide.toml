@@ -1,0 +1,4 @@
+[package]
+name = "fizz_color_tint"
+version = "0.1.0"
+description = "Fizz color tint — pure RGB/HSV color math for PSD eye-texture recoloring: hue+sat retint preserving source value, saturation iris-mask, iris layer-name match. One Almide core, native + wasm."

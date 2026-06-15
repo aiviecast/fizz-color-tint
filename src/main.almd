@@ -1,0 +1,19 @@
+// CLI エントリポイント (native) — 色変換コアの目視確認。
+//   {"tint":..,"hue_blue":..,"sat_grey":..,"iris_yes":..,"iris_no":..,"left":..,"match_eye":..}
+import self as ct
+import json
+import value
+
+effect fn main() -> Unit = {
+  // 灰色がかった元ピクセルを青へ寄せる。packed RGB = (r<<16)|(g<<8)|b。
+  let packed = ct.tint(120, 110, 100, 30, 60, 200)
+  println(json.stringify(value.object([
+    ("tint", value.int(packed)),
+    ("hue_blue", value.float(ct.rgb_to_hue(30, 60, 200))),
+    ("sat_grey", value.float(ct.rgb_to_sat(120, 110, 100))),
+    ("iris_yes", value.bool(ct.is_iris_by_saturation(200, 30, 40))),
+    ("iris_no", value.bool(ct.is_iris_by_saturation(128, 128, 128))),
+    ("left", value.bool(ct.side_is_left(10, 100))),
+    ("match_eye", value.bool(ct.iris_layer_matches(" Eye "))),
+  ])))
+}

@@ -1,0 +1,129 @@
+// fizz_color_tint — 虹彩(目)再着色のための純粋な色変換コア(§11 psd-eye-tinter)。
+//
+// 責務 (一行): RGB↔HSV 変換と、元ピクセルの明度(V)を保ったまま目標色の色相+彩度で
+// 塗り替える再着色を行う。虹彩マスク判定(彩度しきい値)と虹彩レイヤ名マッチも担う。
+//
+// PSD の decode / canvas 合成 / マスク描画 は Node(ag-psd)の I/O、ピクセル単位の
+// 色計算だけが純粋なので Almide に集約=単一の正本。
+// 移植元: openaituber src/converter/psdEyeColor.ts (rgbToHsv/hsvToRgb/再着色/虹彩判定)。
+
+import int
+import float
+import string
+
+// ---- 内部ヘルパ ----
+
+// 0..255 の Int チャンネルを 0..1 の Float へ。
+fn norm(c: Int) -> Float = int.to_float(c) / 255.0
+
+fn cmax(r: Int, g: Int, b: Int) -> Float =
+  float.max(float.max(norm(r), norm(g)), norm(b))
+
+fn cmin(r: Int, g: Int, b: Int) -> Float =
+  float.min(float.min(norm(r), norm(g)), norm(b))
+
+// JS の `x % 2`(x >= 0)。floor ベースで非負の剰余を返す。
+fn fmod2(x: Float) -> Float = x - float.floor(x / 2.0) * 2.0
+
+// ---- RGB → HSV ----
+
+// 色相 0..360。無彩色(d==0)は 0。
+fn rgb_to_hue(r: Int, g: Int, b: Int) -> Float = {
+  let rn = norm(r)
+  let gn = norm(g)
+  let bn = norm(b)
+  let mx = cmax(r, g, b)
+  let mn = cmin(r, g, b)
+  let d = mx - mn
+  if d == 0.0 then 0.0 else {
+    // mx は rn/gn/bn のいずれかと厳密に一致する(fmax で算出)。
+    let h0 = if mx == rn then (gn - bn) / d
+             else if mx == gn then (bn - rn) / d + 2.0
+             else (rn - gn) / d + 4.0
+    let h = h0 * 60.0
+    if h < 0.0 then h + 360.0 else h
+  }
+}
+
+// HSV 彩度 0..1。
+fn rgb_to_sat(r: Int, g: Int, b: Int) -> Float = {
+  let mx = cmax(r, g, b)
+  let d = mx - cmin(r, g, b)
+  if mx == 0.0 then 0.0 else d / mx
+}
+
+// HSV 明度 0..1(= max チャンネル)。
+fn rgb_to_val(r: Int, g: Int, b: Int) -> Float = cmax(r, g, b)
+
+// ---- HSV → RGB ----
+
+fn hsv_c(s: Float, v: Float) -> Float = v * s
+fn hsv_x(h: Float, s: Float, v: Float) -> Float =
+  hsv_c(s, v) * (1.0 - float.abs(fmod2(h / 60.0) - 1.0))
+fn hsv_m(h: Float, s: Float, v: Float) -> Float = v - hsv_c(s, v)
+
+fn to_byte(ch: Float, m: Float) -> Int = float.to_int(float.round((ch + m) * 255.0))
+
+fn hsv_to_r(h: Float, s: Float, v: Float) -> Int = {
+  let c = hsv_c(s, v)
+  let x = hsv_x(h, s, v)
+  let r1 = if h < 60.0 then c else if h < 120.0 then x else if h < 240.0 then 0.0
+           else if h < 300.0 then x else c
+  to_byte(r1, hsv_m(h, s, v))
+}
+
+fn hsv_to_g(h: Float, s: Float, v: Float) -> Int = {
+  let c = hsv_c(s, v)
+  let x = hsv_x(h, s, v)
+  let g1 = if h < 60.0 then x else if h < 180.0 then c else if h < 240.0 then x else 0.0
+  to_byte(g1, hsv_m(h, s, v))
+}
+
+fn hsv_to_b(h: Float, s: Float, v: Float) -> Int = {
+  let c = hsv_c(s, v)
+  let x = hsv_x(h, s, v)
+  let b1 = if h < 120.0 then 0.0 else if h < 180.0 then x else if h < 300.0 then c else x
+  to_byte(b1, hsv_m(h, s, v))
+}
+
+// ---- 再着色 ----
+
+// r,g,b(各 0..255)を 1 つの Int に詰める: (r<<16)|(g<<8)|b。
+// wasm 境界では Int を返し、ブラウザ側でアンパックする(string を跨がせない方針)。
+fn pack_rgb(r: Int, g: Int, b: Int) -> Int = r * 65536 + g * 256 + b
+
+// 元ピクセル(sr,sg,sb)を、目標色(tr,tg,tb)の色相+彩度で塗り替える。
+// 明度は元ピクセルのものを保つ(陰影・ハイライトを壊さない)。返り値は packed RGB。
+fn tint(sr: Int, sg: Int, sb: Int, tr: Int, tg: Int, tb: Int) -> Int = {
+  let th = rgb_to_hue(tr, tg, tb)
+  let ts = rgb_to_sat(tr, tg, tb)
+  let sv = rgb_to_val(sr, sg, sb)
+  pack_rgb(hsv_to_r(th, ts, sv), hsv_to_g(th, ts, sv), hsv_to_b(th, ts, sv))
+}
+
+// ---- 虹彩マスク判定(虹彩レイヤが無い PSD 用の彩度フォールバック) ----
+
+// HSL 彩度 0..1。虹彩(色の濃い瞳)は彩度が高く、肌/白目/背景は低い。
+fn hsl_saturation(r: Int, g: Int, b: Int) -> Float = {
+  let mx = cmax(r, g, b)
+  let mn = cmin(r, g, b)
+  let d = mx - mn
+  let l = (mx + mn) / 2.0
+  if d == 0.0 then 0.0 else d / (1.0 - float.abs(2.0 * l - 1.0))
+}
+
+// 彩度 >= 0.25 を虹彩とみなす(psdEyeColor.ts のしきい値)。
+fn is_iris_by_saturation(r: Int, g: Int, b: Int) -> Bool = hsl_saturation(r, g, b) >= 0.25
+
+// ---- ヘテロクロミア(左右別色)用の左右判定 ----
+
+// キャンバス X 座標 x が左半分(< 幅/2)なら左目。TS の `x < w/2` と一致(浮動小数比較)。
+fn side_is_left(x: Int, width: Int) -> Bool = int.to_float(x) < int.to_float(width) / 2.0
+
+// ---- 虹彩レイヤ名マッチ(PSD レイヤツリーから瞳レイヤを選ぶ) ----
+
+// VRoid 系 PSD の虹彩レイヤ名(eye/iris/hitomi は大小無視、瞳/目 は CJK)。
+fn iris_layer_matches(name: String) -> Bool = {
+  let n = string.to_lower(string.trim(name))
+  n == "eye" or n == "iris" or n == "hitomi" or n == "瞳" or n == "目"
+}

@@ -1,0 +1,64 @@
+// wasm — converter-ui / psd-eye-tinter のグルーから呼ぶ。
+//   色計算は string を跨がせず Int/Float のみ受け渡し(packed RGB は (r<<16)|(g<<8)|b)。
+//   iris_matches だけ文字列入力なので in_alloc バッファ + コピー経由で渡す。
+import self as ct
+import bytes
+import float
+import int
+import list
+import string
+
+var g_in: Bytes = bytes.new(0)
+
+@export(wasm, "in_alloc")
+fn in_alloc(len: Float) -> RawPtr = {
+  g_in = bytes.new(float.to_int(len))
+  bytes.as_mut_ptr(g_in)
+}
+
+// 元ピクセル(sr,sg,sb)を目標色(tr,tg,tb)の色相+彩度で再着色 → packed RGB(Float)。
+// ブラウザ側で p>>16, (p>>8)&255, p&255 にアンパックする。
+@export(wasm, "tint")
+fn tint_px(sr: Float, sg: Float, sb: Float, tr: Float, tg: Float, tb: Float) -> Float =
+  int.to_float(ct.tint(
+    float.to_int(sr), float.to_int(sg), float.to_int(sb),
+    float.to_int(tr), float.to_int(tg), float.to_int(tb)))
+
+@export(wasm, "rgb_hue")
+fn rgb_hue(r: Float, g: Float, b: Float) -> Float =
+  ct.rgb_to_hue(float.to_int(r), float.to_int(g), float.to_int(b))
+
+@export(wasm, "rgb_sat")
+fn rgb_sat(r: Float, g: Float, b: Float) -> Float =
+  ct.rgb_to_sat(float.to_int(r), float.to_int(g), float.to_int(b))
+
+@export(wasm, "rgb_val")
+fn rgb_val(r: Float, g: Float, b: Float) -> Float =
+  ct.rgb_to_val(float.to_int(r), float.to_int(g), float.to_int(b))
+
+@export(wasm, "is_iris_by_saturation")
+fn is_iris_sat(r: Float, g: Float, b: Float) -> Float =
+  if ct.is_iris_by_saturation(float.to_int(r), float.to_int(g), float.to_int(b)) then 1.0 else 0.0
+
+@export(wasm, "side_is_left")
+fn side_left(x: Float, width: Float) -> Float =
+  if ct.side_is_left(float.to_int(x), float.to_int(width)) then 1.0 else 0.0
+
+// g_in を from_list(to_list(...)) で独立バッファにコピーしてから文字列化する。
+// to_string_lossy は g_in をエイリアスし終了時の String dec が g_in を free する
+// (almide#690、released 未修正)。コピー経由なら g_in は無傷で多重読みも安全。
+@export(wasm, "iris_matches")
+fn iris_matches() -> Float =
+  if ct.iris_layer_matches(bytes.to_string_lossy(bytes.from_list(bytes.to_list(g_in)))) then 1.0 else 0.0
+
+effect fn main() -> Unit = {
+  let _a = in_alloc(1.0)
+  let _b = tint_px(120.0, 110.0, 100.0, 30.0, 60.0, 200.0)
+  let _c = rgb_hue(0.0, 0.0, 255.0)
+  let _d = rgb_sat(255.0, 0.0, 0.0)
+  let _e = rgb_val(255.0, 0.0, 0.0)
+  let _f = is_iris_sat(200.0, 30.0, 40.0)
+  let _g = side_left(10.0, 100.0)
+  let _h = iris_matches()
+  ()
+}

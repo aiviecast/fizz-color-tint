@@ -1,0 +1,68 @@
+import self as ct
+import float
+
+// packed RGB を分解して個別チャンネルを取り出す(テスト用)。
+fn r_of(p: Int) -> Int = p / 65536
+fn g_of(p: Int) -> Int = (p / 256) - (p / 65536) * 256
+fn b_of(p: Int) -> Int = p - (p / 256) * 256
+
+test "pack/unpack RGB" {
+  let p = ct.pack_rgb(18, 36, 120)
+  assert_eq(p, 1188984)
+  assert_eq(r_of(p), 18)
+  assert_eq(g_of(p), 36)
+  assert_eq(b_of(p), 120)
+}
+
+test "tint: 明度を保って色相+彩度を移す" {
+  // 灰色がかった元 (120,110,100) を青 (30,60,200) へ → rgb(18,36,120)。
+  let p = ct.tint(120, 110, 100, 30, 60, 200)
+  assert_eq(r_of(p), 18)
+  assert_eq(g_of(p), 36)
+  assert_eq(b_of(p), 120)
+}
+
+test "tint: 純色は明度フルで再現に近い" {
+  // 元が真っ白(V=1)なら、目標色相+彩度がそのまま乗る(目標が純色なら≒目標色)。
+  let p = ct.tint(255, 255, 255, 200, 0, 0)
+  assert_eq(r_of(p), 255)
+  assert_eq(g_of(p), 0)
+  assert_eq(b_of(p), 0)
+}
+
+test "rgb_to_hue: 既知の色相" {
+  assert_eq(float.to_int(float.round(ct.rgb_to_hue(255, 0, 0))), 0)     // 赤
+  assert_eq(float.to_int(float.round(ct.rgb_to_hue(0, 255, 0))), 120)   // 緑
+  assert_eq(float.to_int(float.round(ct.rgb_to_hue(0, 0, 255))), 240)   // 青
+  assert_eq(float.to_int(float.round(ct.rgb_to_hue(128, 128, 128))), 0) // 無彩色 → 0
+}
+
+test "rgb_to_val/sat" {
+  assert_eq(float.to_int(float.round(ct.rgb_to_val(255, 0, 0) * 100.0)), 100)
+  assert_eq(float.to_int(float.round(ct.rgb_to_sat(255, 0, 0) * 100.0)), 100)
+  assert_eq(float.to_int(float.round(ct.rgb_to_sat(128, 128, 128) * 100.0)), 0)
+}
+
+test "is_iris_by_saturation: 彩度しきい値 0.25" {
+  assert_eq(ct.is_iris_by_saturation(200, 30, 40), true)    // 濃い瞳色
+  assert_eq(ct.is_iris_by_saturation(128, 128, 128), false) // 灰(肌/白目相当)
+  assert_eq(ct.is_iris_by_saturation(255, 255, 255), false) // 白
+}
+
+test "side_is_left: 左右分割" {
+  assert_eq(ct.side_is_left(10, 100), true)
+  assert_eq(ct.side_is_left(49, 100), true)
+  assert_eq(ct.side_is_left(50, 100), false)
+  assert_eq(ct.side_is_left(2, 5), true)   // 幅 5 → 中央 2.5、x=2 は左
+  assert_eq(ct.side_is_left(3, 5), false)
+}
+
+test "iris_layer_matches: 虹彩レイヤ名" {
+  assert_eq(ct.iris_layer_matches(" Eye "), true)
+  assert_eq(ct.iris_layer_matches("iris"), true)
+  assert_eq(ct.iris_layer_matches("HITOMI"), true)
+  assert_eq(ct.iris_layer_matches("瞳"), true)
+  assert_eq(ct.iris_layer_matches("目"), true)
+  assert_eq(ct.iris_layer_matches("Skin"), false)
+  assert_eq(ct.iris_layer_matches("eyebrow"), false)
+}
