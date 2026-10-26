@@ -8,11 +8,11 @@ import int
 import list
 import string
 
-var g_in: Bytes = bytes.new(0)
+var g_in: Bytes = bytes.zeros(0)
 
 @export(wasm, "in_alloc")
 fn in_alloc(len: Float) -> RawPtr = {
-  g_in = bytes.new(float.to_int(len))
+  g_in = bytes.zeros(int.from_saturating(len))
   bytes.as_mut_ptr(g_in)
 }
 
@@ -20,29 +20,29 @@ fn in_alloc(len: Float) -> RawPtr = {
 // ブラウザ側で p>>16, (p>>8)&255, p&255 にアンパックする。
 @export(wasm, "tint")
 fn tint_px(sr: Float, sg: Float, sb: Float, tr: Float, tg: Float, tb: Float) -> Float =
-  int.to_float(ct.tint(
-    float.to_int(sr), float.to_int(sg), float.to_int(sb),
-    float.to_int(tr), float.to_int(tg), float.to_int(tb)))
+  float.from(ct.tint(
+    int.from_saturating(sr), int.from_saturating(sg), int.from_saturating(sb),
+    int.from_saturating(tr), int.from_saturating(tg), int.from_saturating(tb)))
 
 @export(wasm, "rgb_hue")
 fn rgb_hue(r: Float, g: Float, b: Float) -> Float =
-  ct.rgb_to_hue(float.to_int(r), float.to_int(g), float.to_int(b))
+  ct.rgb_to_hue(int.from_saturating(r), int.from_saturating(g), int.from_saturating(b))
 
 @export(wasm, "rgb_sat")
 fn rgb_sat(r: Float, g: Float, b: Float) -> Float =
-  ct.rgb_to_sat(float.to_int(r), float.to_int(g), float.to_int(b))
+  ct.rgb_to_sat(int.from_saturating(r), int.from_saturating(g), int.from_saturating(b))
 
 @export(wasm, "rgb_val")
 fn rgb_val(r: Float, g: Float, b: Float) -> Float =
-  ct.rgb_to_val(float.to_int(r), float.to_int(g), float.to_int(b))
+  ct.rgb_to_val(int.from_saturating(r), int.from_saturating(g), int.from_saturating(b))
 
 @export(wasm, "is_iris_by_saturation")
 fn is_iris_sat(r: Float, g: Float, b: Float) -> Float =
-  if ct.is_iris_by_saturation(float.to_int(r), float.to_int(g), float.to_int(b)) then 1.0 else 0.0
+  if ct.is_iris_by_saturation(int.from_saturating(r), int.from_saturating(g), int.from_saturating(b)) then 1.0 else 0.0
 
 @export(wasm, "side_is_left")
 fn side_left(x: Float, width: Float) -> Float =
-  if ct.side_is_left(float.to_int(x), float.to_int(width)) then 1.0 else 0.0
+  if ct.side_is_left(int.from_saturating(x), int.from_saturating(width)) then 1.0 else 0.0
 
 // g_in を from_list(to_list(...)) で独立バッファにコピーしてから文字列化する。
 // to_string_lossy は g_in をエイリアスし終了時の String dec が g_in を free する
