@@ -3,6 +3,7 @@
 //   iris_matches だけ文字列入力なので in_alloc バッファ + コピー経由で渡す。
 import self as ct
 import bytes
+import ffi
 import float
 import int
 import list
@@ -13,7 +14,7 @@ var g_in: Bytes = bytes.zeros(0)
 @export(wasm, "in_alloc")
 fn in_alloc(len: Float) -> RawPtr = {
   g_in = bytes.zeros(int.from_saturating(len))
-  bytes.as_mut_ptr(g_in)
+  ffi.address(g_in)
 }
 
 // 元ピクセル(sr,sg,sb)を目標色(tr,tg,tb)の色相+彩度で再着色 → packed RGB(Float)。
