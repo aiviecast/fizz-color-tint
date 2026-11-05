@@ -9,12 +9,12 @@ import int
 import list
 import string
 
-var g_in: Bytes = bytes.zeros(0)
+var g_in: Region = ffi.region(bytes.new())
 
 @export(wasm, "in_alloc")
-fn in_alloc(len: Float) -> RawPtr = {
-  g_in = bytes.zeros(int.from_saturating(len))
-  ffi.address(g_in)
+effect fn in_alloc(len: Float) -> Region = {
+  g_in = ffi.alloc(int.from_saturating(len))!
+  g_in
 }
 
 // 元ピクセル(sr,sg,sb)を目標色(tr,tg,tb)の色相+彩度で再着色 → packed RGB(Float)。
@@ -49,17 +49,17 @@ fn side_left(x: Float, width: Float) -> Float =
 // to_string_lossy は g_in をエイリアスし終了時の String dec が g_in を free する
 // (almide#690、released 未修正)。コピー経由なら g_in は無傷で多重読みも安全。
 @export(wasm, "iris_matches")
-fn iris_matches() -> Float =
-  if ct.iris_layer_matches(bytes.to_string_lossy(bytes.from_list(bytes.to_list(g_in)))) then 1.0 else 0.0
+effect fn iris_matches() -> Float =
+  if ct.iris_layer_matches(bytes.to_string_lossy(ffi.to_bytes(g_in)!)) then 1.0 else 0.0
 
 effect fn main() -> Unit = {
-  let _a = in_alloc(1.0)
+  let _a = in_alloc(1.0)!
   let _b = tint_px(120.0, 110.0, 100.0, 30.0, 60.0, 200.0)
   let _c = rgb_hue(0.0, 0.0, 255.0)
   let _d = rgb_sat(255.0, 0.0, 0.0)
   let _e = rgb_val(255.0, 0.0, 0.0)
   let _f = is_iris_sat(200.0, 30.0, 40.0)
   let _g = side_left(10.0, 100.0)
-  let _h = iris_matches()
+  let _h = iris_matches()!
   ()
 }
