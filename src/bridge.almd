@@ -11,7 +11,7 @@ import string
 
 var g_in: Region = ffi.region(bytes.new())
 
-@export(wasm, "in_alloc")
+@export(wasm, "in_alloc", returns: address)
 effect fn in_alloc(len: Float) -> Region = {
   g_in = ffi.alloc(int.from_saturating(len))!
   g_in
