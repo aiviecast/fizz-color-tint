@@ -14,7 +14,7 @@ import string
 // ---- 内部ヘルパ ----
 
 // 0..255 の Int チャンネルを 0..1 の Float へ。
-fn norm(c: Int) -> Float = int.to_float(c) / 255.0
+fn norm(c: Int) -> Float = float.from(c) / 255.0
 
 fn cmax(r: Int, g: Int, b: Int) -> Float =
   float.max(float.max(norm(r), norm(g)), norm(b))
@@ -62,7 +62,7 @@ fn hsv_x(h: Float, s: Float, v: Float) -> Float =
   hsv_c(s, v) * (1.0 - float.abs(fmod2(h / 60.0) - 1.0))
 fn hsv_m(h: Float, s: Float, v: Float) -> Float = v - hsv_c(s, v)
 
-fn to_byte(ch: Float, m: Float) -> Int = float.to_int(float.round((ch + m) * 255.0))
+fn to_byte(ch: Float, m: Float) -> Int = int.from_saturating(float.round((ch + m) * 255.0))
 
 fn hsv_to_r(h: Float, s: Float, v: Float) -> Int = {
   let c = hsv_c(s, v)
@@ -118,7 +118,7 @@ fn is_iris_by_saturation(r: Int, g: Int, b: Int) -> Bool = hsl_saturation(r, g, 
 // ---- ヘテロクロミア(左右別色)用の左右判定 ----
 
 // キャンバス X 座標 x が左半分(< 幅/2)なら左目。TS の `x < w/2` と一致(浮動小数比較)。
-fn side_is_left(x: Int, width: Int) -> Bool = int.to_float(x) < int.to_float(width) / 2.0
+fn side_is_left(x: Int, width: Int) -> Bool = float.from(x) < float.from(width) / 2.0
 
 // ---- 虹彩レイヤ名マッチ(PSD レイヤツリーから瞳レイヤを選ぶ) ----
 
